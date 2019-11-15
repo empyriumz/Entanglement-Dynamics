@@ -22,14 +22,16 @@ lc2=L-lc1-la-lb
 # initializing wavefunctions
 p1=np.ones(1)
 p2=np.zeros(2**L-1,dtype='c16')
+# a product state with all spins align up
 psi=np.concatenate((p1,p2),axis=0).T
+# Pauli z-matrix
 sz = np.array([[1, 0],[0, -1]])
 
 
 # von-Neumann and Renyi entanglement entropy
 def ent(wave,n,la):
     lb=L-la
-    # convert the wavefunction into matrix for SVD
+    # convert the wavefunction into a matrix for SVD
     temp=np.reshape(wave,(int(2**la),int(2**lb)))
     # SVD for entanglement entropy, only singular values calculated
     sp=np.linalg.svd(temp, compute_uv=False)
