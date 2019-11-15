@@ -13,11 +13,14 @@ para = para.readlines()
 # the paramters are system size, measurement probability and discrete time steps
 L, pro, time = int(para[0]), float(para[1]), int(para[2])
 
-# system partition
-# with PBC, we partition system into 4 parts where a and b separated by c1 and c2
-# c1 and c2 are effectively connected, so the system is composed of A, B and C
+
+'''
+system partition
+with PBC, we partition system into 4 parts where a and b separated by c1 and c2
+c1 and c2 are effectively connected, so the system is composed of A, B and C
+'''
 lc1,la,lb = np.floor(L/8), np.floor(L/4), np.floor(L/4)
-lc2=L-lc1-la-lb
+lc2 = L-lc1-la-lb
 
 # Pauli z-matrix
 sz = np.array([[1, 0],[0, -1]])
@@ -26,11 +29,12 @@ class wavefunction:
     def __init__(self, len):
         p1 = np.ones(1)
         p2 = np.zeros(2**len-1,dtype='c16')
-        # wavefunction in 1D form
+        self.len = len # total system size
+        # wavefunction in 1D 
         self.one_dim = np.concatenate((p1,p2),axis=0).T
 
-    def ent(self, len, n, la): # von-Neumann and Renyi entanglement entropy
-        lb = len-la
+    def ent(self, n, la): # von-Neumann and Renyi entanglement entropy
+        lb = self.len-la
         # convert the wavefunction into a matrix for SVD
         temp = np.reshape(self.one_dim,(int(2**la),int(2**lb)))
         # SVD for entanglement entropy, only singular values are calculated
@@ -39,81 +43,92 @@ class wavefunction:
         # chop small singular values to zero to avoid numerical instability
         tol = 1e-10
         sp[abs(sp) < tol] = 0.0
-        # choose only non-zero values to avoid feeding to log function
+        # retain only non-zero values to avoid feeding to log function
         sp = sp[np.nonzero(sp)]
         el = sp**2
         # EE in log2 base
-        return -np.dot(el,np.log2(el)),(1/(1-n))*np.log2(np.sum(sp**(2*n)))
+        return -np.dot(el,np.log2(el)), (1/(1-n))*np.log2(np.sum(sp**(2*n)))
 
-    def logneg(self,n,la,lb,lc1,lc2):
-        #region A
-        ps = np.reshape(self.one_dim, (int(2**lc1),int(2**la),int(2**lc2),int(2**lb)))
-        ps = np.moveaxis(ps,0,1)
-        ps = np.reshape(ps,(int(2**la),int(2**(len-la))))
-        # entanglement entropy in region A
-        en = ent(ps, n, la) 
-        # sa and sar stand for von-Neumann and Renyi entanglement entropies
-        sa, sar = en[0], en[1]
+    # def logneg(self, n, la, lb, lc1, lc2):
+    #     #region A
+    #     ps = np.reshape(self.one_dim, (int(2**lc1),int(2**la),int(2**lc2),int(2**lb)))
+    #     ps = np.moveaxis(ps,0,1)
+    #     ps = np.reshape(ps,(int(2**la),int(2**(len-la))))
+    #     # entanglement entropy in region A
+    #     en = ent(ps, n, la) 
+    #     # sa and sar stand for von-Neumann and Renyi entanglement entropies
+    #     sa, sar = en[0], en[1]
 
     # time evolution consists of random unitaries + projective measurement
-    def evo(steps, wave, prob):
+    def evo(self, steps, prob):
         # initiate empty lists for keeping data
-        von=np.zeros(steps, dtype='float64') # von-Neumann entropy
-        renyi=np.zeros(steps, dtype='float64') # Renyi entropy
-        neg=np.zeros(steps, dtype='float64') # logarithmic negativity
-        mut=np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
-        mutr=np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
+        von = np.zeros(steps, dtype='float64') # von-Neumann entropy
+        renyi = np.zeros(steps, dtype='float64') # Renyi entropy
+        neg = np.zeros(steps, dtype='float64') # logarithmic negativity
+        mut = np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
+        mutr = np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
     
         for t in range(steps):
             # evolve over odd links
-            u = unitary_group.rvs(4,size = len//2) # generate random U(4) matrix
             # combine the single unitary with rest of the identity matrix to make the complete unitary 
             # applying on the entire Hilbert space
-            for i in range(len(u)):
-                temp = sparse.kron(sparse.identity(2**(2*i)),u[i])
-                un = sparse.kron(temp,sparse.identity(2**(L-2*i-2)))
-                self.one_dim = un.dot(self.one_dim)
+            u = unitary_group.rvs(4,size = self.len//2) # generate a set of random U(4) matrices
+            for i in range(self.len//2):
+                temp = sparse.kron(sparse.identity(2**(2*i)),u[i]) # construct left part of the whole unitary
+                un = sparse.kron(temp, sparse.identity(2**(self.len-2*i-2))) # combine with the right part
+                self.one_dim = un.dot(self.one_dim) # apply the unitary to the wavefunction
+      
 
-            # # measurement layer
+            ## measurement layer
             # self.one_dim = self.one_dim.measure(prob)
-
-            # before evolve on even link, we need to rearrange indices first to accommodate the boundary condition PBC
-            wave = np.reshape(self.one_dim,(2,int(2**(L-2)),2))
+ 
+            '''
+            before evolve on even link,  
+            we need to rearrange indices first to accommodate the boundary condition PBC
+            '''
+            wave = np.reshape(self.one_dim,(2,int(2**(self.len-2)),2))
             # move the last site into the first one such that the unitaries can connect the 1st and the last site
             wave = np.moveaxis(wave,-1,0)
             self.one_dim = wave.flatten()
         
             # evolve over even links
-            u = unitary_group.rvs(4,size=L//2) # generate another random unitary
-            for i in range(len(u)):
+            u = unitary_group.rvs(4,size = self.len//2) # generate another random unitary
+            for i in range(self.len//2):
                 un = sparse.kron(sparse.identity(2**(2*i)),u[i])
-                un = sparse.kron(un,sparse.identity(2**(L-2*i-2)))
+                un = sparse.kron(un,sparse.identity(2**(self.len-2*i-2)))
                 self.one_dim = un.dot(self.one_dim)
 
-            #shift the index back to the original order after evolution
-            wave = np.reshape(self.one_dim,(2,2,int(2**(L-2))))
-            wave = np.moveaxis(wave,-1,0)
-            self.one_dim = np.moveaxis(wave,-1,0).flatten()
+            ## shift the index back to the original order after evolution
+            # wave = np.reshape(self.one_dim,(2,2,int(2**(len-2))))
+            # wave = np.moveaxis(wave,-1,0)
+            # self.one_dim = np.moveaxis(wave,-1,0).flatten()
 
-            # # measurement layer
-            # self.one_dim = self.one_dim.measure(prob)
+            # # # measurement layer
+            # # self.one_dim = self.one_dim.measure(prob)
 
 
-            # calculate entanglement entropies with bi-partition
-            result = ent(wave,2,L//2)
-            von[t] = result[0]
-            renyi[t] = result[1]
+            # # calculate entanglement entropies with bi-partition
+            # # ent(self, len, n, la):
+            # result = self.ent(len,2,len//2)
+            # von[t] = result[0]
+            # renyi[t] = result[1]
             # calculate logarithmic negativity and mutual information with tri-partition
-            result = logneg(wave,2,la,lb,lc1,lc2)
-            neg[t] = result[0]
-            mut[t] = result[1]
-            mutr[t] = result[2]
+            # result = logneg(wave,2,la,lb,lc1,lc2)
+            # neg[t] = result[0]
+            # mut[t] = result[1]
+            # mutr[t] = result[2]
         
-    return von, renyi, neg, mut, mutr
+        # return von, renyi, neg, mut, mutr
+        return von, renyi
 
 
 psi = wavefunction(L)
-print(psi.ent(L, 2, 3))
+print(psi.one_dim.shape)
+psi.evo(time, pro)
+for i in range(L//2):
+    print(i)
+
+print(psi.ent(2, 3))
 
 
 
@@ -201,59 +216,59 @@ def measure(wave,prob):
     return wave
 
 # time evolution consists of random unitaries + projective measurement
-def evo(steps, wave, prob):
-    # initiate empty lists for keeping data
-    von=np.zeros(steps, dtype='float64') # von-Neumann entropy
-    renyi=np.zeros(steps, dtype='float64') # Renyi entropy
-    neg=np.zeros(steps, dtype='float64') # logarithmic negativity
-    mut=np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
-    mutr=np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
+# def evo(steps, wave, prob):
+#     # initiate empty lists for keeping data
+#     von=np.zeros(steps, dtype='float64') # von-Neumann entropy
+#     renyi=np.zeros(steps, dtype='float64') # Renyi entropy
+#     neg=np.zeros(steps, dtype='float64') # logarithmic negativity
+#     mut=np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
+#     mutr=np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
     
-    for t in range(steps):
-        # evolve over odd links
-        u=unitary_group.rvs(4,size=L//2) # generate random U(4) matrix
-        # combine the single unitary with rest of the identity matrix to make the complete unitary 
-        # applying on the entire Hilbert space
-        for i in range(len(u)):
-            temp=sparse.kron(sparse.identity(2**(2*i)),u[i])
-            un=sparse.kron(temp,sparse.identity(2**(L-2*i-2)))
-            wave=un.dot(wave)
+#     for t in range(steps):
+#         # evolve over odd links
+#         u=unitary_group.rvs(4,size=L//2) # generate random U(4) matrix
+#         # combine the single unitary with rest of the identity matrix to make the complete unitary 
+#         # applying on the entire Hilbert space
+#         for i in range(len(u)):
+#             temp=sparse.kron(sparse.identity(2**(2*i)),u[i])
+#             un=sparse.kron(temp,sparse.identity(2**(L-2*i-2)))
+#             wave=un.dot(wave)
 
-        # measurement layer
-        wave=measure(wave,prob)
+#         # measurement layer
+#         wave=measure(wave,prob)
 
-        # before evolve on even link, we need to rearrange indices first to accommodate the boundary condition PBC
-        wave=np.reshape(wave,(2,int(2**(L-2)),2))
-        # move the last site into the first one such that the unitaries can connect the 1st and the last site
-        wave=np.moveaxis(wave,-1,0)
-        wave=wave.flatten()
+#         # before evolve on even link, we need to rearrange indices first to accommodate the boundary condition PBC
+#         wave=np.reshape(wave,(2,int(2**(L-2)),2))
+#         # move the last site into the first one such that the unitaries can connect the 1st and the last site
+#         wave=np.moveaxis(wave,-1,0)
+#         wave=wave.flatten()
         
-        # evolve over even links
-        u=unitary_group.rvs(4,size=L//2)
-        for i in range(len(u)):
-            un=sparse.kron(sparse.identity(2**(2*i)),u[i])
-            un=sparse.kron(un,sparse.identity(2**(L-2*i-2)))
-            wave=un.dot(wave)
+#         # evolve over even links
+#         u=unitary_group.rvs(4,size=L//2)
+#         for i in range(len(u)):
+#             un=sparse.kron(sparse.identity(2**(2*i)),u[i])
+#             un=sparse.kron(un,sparse.identity(2**(L-2*i-2)))
+#             wave=un.dot(wave)
 
-        #shift the index back to the original order after evolution
-        wave=np.reshape(wave,(2,2,int(2**(L-2))))
-        wave=np.moveaxis(wave,-1,0)
-        wave=np.moveaxis(wave,-1,0).flatten()
+#         #shift the index back to the original order after evolution
+#         wave=np.reshape(wave,(2,2,int(2**(L-2))))
+#         wave=np.moveaxis(wave,-1,0)
+#         wave=np.moveaxis(wave,-1,0).flatten()
 
-        #measurement layer
-        wave=measure(wave,prob)
+#         #measurement layer
+#         wave=measure(wave,prob)
 
-        # calculate entanglement entropies with bi-partition
-        result=ent(wave,2,L//2)
-        von[t]=result[0]
-        renyi[t]=result[1]
-        # calculate logarithmic negativity and mutual information with tri-partition
-        result=logneg(wave,2,la,lb,lc1,lc2)
-        neg[t]=result[0]
-        mut[t]=result[1]
-        mutr[t]=result[2]
+#         # calculate entanglement entropies with bi-partition
+#         result=ent(wave,2,L//2)
+#         von[t]=result[0]
+#         renyi[t]=result[1]
+#         # calculate logarithmic negativity and mutual information with tri-partition
+#         result=logneg(wave,2,la,lb,lc1,lc2)
+#         neg[t]=result[0]
+#         mut[t]=result[1]
+#         mutr[t]=result[2]
         
-    return von, renyi, neg, mut, mutr
+#     return von, renyi, neg, mut, mutr
 
 
 # result = evo(time, psi, pro)
