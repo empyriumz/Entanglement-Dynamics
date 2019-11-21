@@ -4,6 +4,7 @@ from scipy.sparse.linalg import eigsh
 from scipy.stats import unitary_group
 import random
 from timeit import default_timer as timer 
+from numba import jit
 
 # keep track of running time
 start = timer()
@@ -28,6 +29,40 @@ psi=np.concatenate((p1,p2),axis=0).T
 # Pauli z-matrix
 sz = np.array([[1, 0],[0, -1]])
 
+@jit(nopython=True, parallel=True, nogil=True, fastmath=True)
+def kron_raw(d_a, r_a, c_a, d_b, r_b, c_b):
+    
+    # nz = #s of stored values, including explicit zeros
+
+    # use COO
+    
+    nz = len(d_b)
+ 
+    # expand entries of a into blocks
+    row = np.repeat(r_a, nz)
+    col = np.repeat(c_a, nz)
+    data = np.repeat(d_a, nz)
+ 
+    # multiply the original coordinate to get the expanded coordinate
+    row *= shape_b
+    col *= shape_b
+
+    # increment block indices
+    
+    row, col = row.reshape(-1,nz), col.reshape(-1,nz)
+    #print(row, B.row, B.col)
+    
+    # this can be verified from the definitions of kronecker product, see Wiki for the formula
+    row += r_b
+    col += c_b
+    row, col = row.reshape(-1), col.reshape(-1)
+    # compute block entries
+    data = data.reshape(-1,nz) * d_b
+    data = data.reshape(-1)
+
+    return data, row, col
+
+
 
 # von-Neumann and Renyi entanglement entropy
 def ent(wave,n,la):
@@ -43,6 +78,26 @@ def ent(wave,n,la):
     sp=sp[np.nonzero(sp)]
     el=sp**2
     return -np.dot(el,np.log2(el)),(1/(1-n))*np.log2(np.sum(sp**(2*n)))
+
+def ent_approx(wave, n, la): 
+	# approximated von-Neumann and Renyi entanglement entropy 
+	# by keeping L largest singluar values
+	l = L
+	lb = l - la
+    # convert the wavefunction into a matrix for SVD
+	temp = np.reshape(wave,(int(2**la),int(2**lb)))
+	# (*The singular values can be obtained from Sqrt[Eigenvalues[ConjugateTranspose[m].m]]. *)
+	temp = sparse.csr_matrix(np.dot(temp, temp.conj().T))
+	sp = np.array(eigsh(temp, k = l, which='LM',return_eigenvectors=False))
+	
+	# chop small singular values to zero to avoid numerical instability
+	tol = 1e-10
+	sp[abs(sp) < tol] = 0.0
+	# retain only non-zero values to avoid feeding to log function
+	el = sp[sp != 0]
+	# el = sp**2
+	# EE in log2 base
+	return -np.dot(el,np.log2(el)), (1/(1-n))*np.log2(np.sum(sp**(n)))
 
 # logarithmic negativity and mutual information
 def logneg(wave,n,la,lb,lc1,lc2):
@@ -89,7 +144,12 @@ def logneg(wave,n,la,lb,lc1,lc2):
 	return abs(logn), sa+sb-sc, sar+sbr-scr
 
 # projective single-site measurement in z-basis
-def measure(wave,prob):
+def measure_slow(wave,prob):
+	'''
+	the z-projection operator for each location is constructed
+	in a straightforward manner by making tensor product between s_z and 
+	identity matrix
+	'''
 	# there are two possible outcomes
 	choice = [0, 1]
 	for n in range(L):
@@ -127,8 +187,12 @@ def measure(wave,prob):
 	return wave
 
 # projective single-site measurement in z-basis
-def measure_test(wave, prob, pos):
-    # there are two possible outcomes
+def measure(wave, prob, pos):
+	'''
+	the better solution for z-projection is by observing structure of the tensor product between
+	two diagonal matrices. It's still diagonal and follows the pattern described below.
+	'''
+    # there are two possible measurement outcomes
     choice = [0, 1]
     op = np.random.choice(choice, 1, p=[1-prob, prob]) #determine if to measure on this site
     # if the measurement is chosen at the given position
@@ -136,18 +200,19 @@ def measure_test(wave, prob, pos):
         # construct \sigma_z_i in the many-body basis
         temp = np.ones(2**(L-pos-1))
         pz = np.concatenate((temp,-temp))
-        # repeat the pattern for 2**pos times
-        pz = sparse.diags(np.tile(pz, 2**pos))
+        # repeat the pattern for 2**pos times        
+        pz = np.tile(pz, 2**pos)
         '''
+        we can construct the diagonal projection matrix as follows 
+        pz = sparse.diags(np.tile(pz, 2**pos))
+        but it's unnecessary since we can avoid the dot product between a diagonal matrix and 
+        a vector by direct list multiplication
+        
         alternatively, this can be done with the more conventional method
         pz = sparse.kron(sparse.identity(2**pos), sz, format="csr")
         pz = sparse.kron(pz,sparse.identity(2**(L-pos-1)), format="csr")
         but the kronecker product is slow in scipy
         '''
-        #up = 0.5*(spid + pz)       
-           
-        # projection operator for spin down
-        #down = 0.5*(spid - pz) 
         
 
         # projection of wavefunction
@@ -157,14 +222,15 @@ def measure_test(wave, prob, pos):
         This is also for avoiding the plus operation between 
         two large sparse matrices which is slow numerically
         '''
-        temp = pz.dot(wave)
+        temp = pz*wave
         '''
         instead we only need to compute the plus and minus between vectors
         '''
         pup1 = 0.5*(wave + temp)
         pdown1 = 0.5*(wave - temp)
         # expectation values
-        temp = (wave.conjugate().T).dot(temp)
+        #temp = (wave.conjugate().T).dot(temp)
+        temp = np.vdot(wave, temp)
         pup = 0.5 + 0.5*np.asscalar(temp.real)
         pdown = 1 - pup
 
@@ -203,27 +269,6 @@ def measure_test(wave, prob, pos):
             # print(pup, pdown)
             
     return wave
-    
-def ent2(wave, n, la): # von-Neumann and Renyi entanglement entropy
-	l = L
-	lb = l - la
-    # convert the wavefunction into a matrix for SVD
-	temp = np.reshape(wave,(int(2**la),int(2**lb)))
-	temp = sparse.csr_matrix(np.dot(temp, temp.conj().T))
-	sp = np.array(eigsh(temp, k=8, which='LM',return_eigenvectors=False))
-	# (*The singular values can be obtained from Sqrt[Eigenvalues[ConjugateTranspose[m].m]]. *)
-	# sp = sp[sp != 0]
-
-	# print(sp)
-	# chop small singular values to zero to avoid numerical instability
-	tol = 1e-10
-	sp[abs(sp) < tol] = 0.0
-	# retain only non-zero values to avoid feeding to log function
-	el = sp[sp != 0]
-	# el = sp**2
-	# EE in log2 base
-	return -np.dot(el,np.log2(el)), (1/(1-n))*np.log2(np.sum(sp**(n)))
-
 
 # time evolution consists of random unitaries + projective measurement
 def evo(steps, wave, prob):
@@ -287,7 +332,8 @@ def evo(steps, wave, prob):
 	# return von, renyi, neg, mut, mutr, wave
 	return von, renyi, von2, renyi2
 
-
+# compile jit
+kron_raw(d_a, r_a, c_a, d_b, r_b, c_b);
 
 result = evo(time, psi, pro)
 print(result[0]-result[2])
