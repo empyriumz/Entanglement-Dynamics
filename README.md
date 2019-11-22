@@ -4,6 +4,9 @@ Random unitary time evolution plus projective measurement in the one-dimensional
 By partitioning the system into three parts, it is possible to calculate the mutual information 
 and negativity, which provides more insight into the possible area-to-volume law entanglement phase transitions.
 
+When the system size L is large, it is possible to make the approximation that only keeps a few O(L)
+largest singular values in computing the entanglement entropy. This approximation works well even at the entanglement transition critical point where the entanglement scales as log(L).
+
 # Refs:
 The protocol used in the time evolution is the same as the following papers
 
