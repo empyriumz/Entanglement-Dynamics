@@ -52,7 +52,15 @@ def ent(wave, n, L, la):
     # choose only non-zero values to avoid feeding to log function
     sp = sp[np.nonzero(sp)]
     el = sp**2
-    return -np.dot(el,np.log2(el)),(1/(1-n))*np.log2(np.sum(sp**(2*n)))
+    von = -np.dot(el,np.log2(el))
+    ren = (1/(1-n))*np.log2(np.sum(el**(n)))
+    # chop small values to zero
+    if (abs(von) < tol):
+        von = 0
+    if (abs(ren) < tol):
+        ren = 0
+    # EE in log2 base
+    return von, ren
 
 def ent_approx(wave, n, L, la): 
     # approximated von-Neumann and Renyi entanglement entropy 
