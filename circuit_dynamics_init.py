@@ -9,7 +9,12 @@ from scipy.linalg import svdvals,svd
 
 @jit(nopython=True, parallel=True, nogil=True, fastmath=True)
 def kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b):
-    
+    '''
+    This function computes the kronecker product between two sparse matrices in COO format.
+    The algorithm remains the same with Scipy's approach. 
+    We made some small changes to remove some overhead and force all inputs data
+    to be numpy arrays to take advantange of numba, with a speed up around 2X. 
+    '''
     # nz = # of stored values, including explicit zeros
 
     # use COO format    
