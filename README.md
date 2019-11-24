@@ -25,7 +25,7 @@ you'll need Cupy and mpi4py and dependencies therein.
 # TODO
 ~~GPU version for fast SVD and matrix dot.~~
 
-Update: The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested on Kaggle platform (with NVidia K80). 
+The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested on Kaggle platform (with NVidia K80). 
 
 Large-scale distributed SVD using MPI
 
