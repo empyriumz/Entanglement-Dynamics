@@ -43,7 +43,7 @@ def kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b):
 def ent(wave, n, L, la):
     lb = L-la
     # convert the wavefunction into a matrix for SVD
-    temp = np.reshape(wave,(int(2**la),int(2**lb)))
+    temp = np.reshape(wave,(2**la, 2**lb))
     # SVD for entanglement entropy, only singular values calculated
     sp = np.linalg.svd(temp, compute_uv=False)
     tol = 1e-10
@@ -332,10 +332,55 @@ def unitary(wave, pos, L):
     c_b = r_b
     t1 = kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
     un = coo_matrix((t1[0],(t1[1],t1[2])), shape=(2**L, 2**L))
-    wave = un.dot(wave)
+    wave = un.dot(wave.flatten())
 
     return wave
 
+# time evolution consists of random unitaries + projective measurement
+def evo(steps, wave, prob, L, n, partition):
+    von = np.zeros(steps, dtype='float64') # von-Neumann entropy
+    renyi = np.zeros(steps, dtype='float64') # Renyi entropy
+    neg = np.zeros(steps, dtype='float64') # logarithmic negativity
+    mut = np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
+    mutr = np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
+    
+    for t in range(steps):
+        # evolve over odd links
+        for i in range(L//2):
+            wave = unitary(wave, i, L)     
+        
+        # measurement layer
+        for i in range(L):
+            wave = measure(wave, prob, i, L)
+
+        # before evolve on even link, we need to rearrange indices first to accommodate the boundary condition PBC
+        wave = np.reshape(wave,(2, 2**(L-2),2))
+        # move the last site into the first one such that the unitaries can connect the 1st and the last site
+        wave = np.moveaxis(wave,-1,0)
+        wave = wave.flatten()
+        
+        # evolve over even links
+        for i in range(L//2):
+            wave = unitary(wave, i, L)  
+
+        #shift the index back to the original order after evolution
+        wave = np.reshape(wave,(2, 2, 2**(L-2)))
+        wave = np.moveaxis(wave,-1,0)
+        wave = np.moveaxis(wave,-1,0).flatten()
+
+        #measurement layer
+        for i in range(L):
+            wave = measure(wave, prob, i, L)
+       
+        result = ent(wave, n, L, L//2)
+        von[t] = result[0]
+        renyi[t] = result[1]
+        result = logneg(wave, n, partition)
+        neg[t] = result[0]
+        mut[t] = result[1]
+        mutr[t] = result[2]
+
+    return np.array([von, renyi, neg , mut, mutr])
 
 # generate a small data set to feed kron_raw for compilation
 d_a = np.ones(4)
@@ -348,5 +393,7 @@ r_b = r_a
 c_b = c_a
 shape_b = 4
 
-# jit compile
-kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b);
+
+
+if __name__ == "__main__":  # jit compile
+    kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
