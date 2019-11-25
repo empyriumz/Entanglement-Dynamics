@@ -26,7 +26,7 @@ GPU and MPI versions need Cupy and mpi4py and dependencies therein.
 
 The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested on Kaggle platform (with NVidia K80). 
 
-Large-scale distributed SVD using MPI
+Large-scale distributed Kronecker product and SVD using MPI
 
 # Refs:
 The protocol used in the time evolution is the same as the following papers
