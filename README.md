@@ -19,8 +19,7 @@ largest singular values in computing the entanglement entropy. This approximatio
 2. Jupyter lab (or notebook)
 3. Numpy, Scipy, Numba (all lastest version from Conda)
 
-If you want to try GPU and MPI versions,
-you'll need Cupy and mpi4py and dependencies therein.
+GPU and MPI versions need Cupy and mpi4py and dependencies therein.
 
 # TODO
 ~~GPU version for fast SVD and matrix dot.~~
