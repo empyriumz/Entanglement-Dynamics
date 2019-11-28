@@ -19,15 +19,14 @@ largest singular values in computing the entanglement entropy. This approximatio
 2. Jupyter lab (or notebook)
 3. Numpy, Scipy, Numba (all lastest version from Conda)
 
-If you want to try GPU and MPI versions,
-you'll need Cupy and mpi4py and dependencies therein.
+GPU and MPI versions need Cupy and mpi4py and dependencies therein.
 
 # TODO
 ~~GPU version for fast SVD and matrix dot.~~
 
 The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested on Kaggle platform (with NVidia K80). 
 
-Large-scale distributed SVD using MPI
+Large-scale distributed Kronecker product and SVD using MPI
 
 # Refs:
 The protocol used in the time evolution is the same as the following papers
