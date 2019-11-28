@@ -1,13 +1,14 @@
 import numpy as np 
 from scipy import sparse
-from scipy.sparse.linalg import eigsh
+from scipy.sparse.linalg import eigsh, svds
 from scipy.stats import unitary_group
 import random
 from numba import jit
 from scipy.sparse import coo_matrix, csr_matrix
 from scipy.linalg import svdvals,svd
 
-@jit(nopython=True, parallel=True, nogil=True, fastmath=True)
+
+@jit(nopython=True, parallel=True, nogil=True)
 def kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b):
     '''
     This function computes the kronecker product between two sparse matrices in COO format.
@@ -67,29 +68,24 @@ def ent(wave, n, l, la):
     # EE in log2 base
     return von, ren
 
+
 def ent_approx(wave, n, l, la): 
     # approximated von-Neumann and Renyi entanglement entropy 
     # by keeping l largest singluar values
+    # this approximation applies only when calculating half-chain EE
     lb = l - la
     tol = 1e-12
     # convert the wavefunction into a matrix for SVD
     temp = np.reshape(wave,(int(2**la),int(2**lb)))
     if lb != l//2: 
-        sp=np.linalg.svd(temp, compute_uv=False)
-        # chop small singular values to zero for numerical stability
-        sp[abs(sp) < tol] = 0.0
-        sp = sp[sp != 0]
+        sp=np.linalg.svd(temp, compute_uv=False) # calculating all singular values
         
-    else: # cut the system into halves:
-        # The singular values of matrix m can be obtained from Sqrt[Eigenvalues[ConjugateTranspose[m].m]]. 
-        temp = sparse.csr_matrix(np.dot(temp.conj().T, temp))
-        # approximation: keep l largest eigenvalues
-        sp = np.array(eigsh(temp, k = l, which='lM',return_eigenvectors=False))
-        
-        sp[abs(sp) < tol] = 0.0
-        sp = sp[sp != 0]
-        sp = np.sqrt(sp)
-        
+    else: 
+        sp = svds(temp, k = l, which='LM', return_singular_vectors=False) # return largest l singular values
+    
+    # chop small singular values to zero for numerical stability
+    sp[abs(sp) < tol] = 0.0
+    sp = sp[sp != 0]        
     el = sp**2
     von = -np.dot(el,np.log2(el))
     ren = (1/(1-n))*np.log2(np.sum(el**(n)))
@@ -175,7 +171,7 @@ def logneg_approx(wave, n, partition):
     # approximation: keeping only l largest eigenvalues
     pab = sparse.csr_matrix(np.dot(pab.conj().T, pab))
     #print(pab.shape)
-    sp = np.array(eigsh(pab, k = l, which='lM',return_eigenvectors=False))
+    sp = np.array(eigsh(pab, k = l, which='LM',return_eigenvectors=False))
     tol = 1e-10
     sp[abs(sp) < tol] = 0.0
     sp = np.sqrt(sp)
@@ -245,7 +241,7 @@ def measure(wave, prob, pos, l):
     if op[0] == 1:
         # construct \sigma_z_i in the many-body basis
         temp = np.ones(2**(l-pos-1))
-        pz = np.concatenate((temp,-temp))
+        pz = np.concatenate((temp, -temp))
         # repeat the pattern for 2**pos times        
         pz = np.tile(pz, 2**pos)
         '''
@@ -275,11 +271,13 @@ def measure(wave, prob, pos, l):
         pup1 = 0.5*(wave + temp)
         pdown1 = 0.5*(wave - temp)
         # expectation values
-        #temp = (wave.conjugate().T).dot(temp)
-        temp = np.vdot(wave, temp)
-        pup = 0.5 + 0.5*np.asscalar(temp.real)
+        #temp = (wave.conjugate().T).dot(temp).real
+        temp = np.vdot(wave, temp).real
+        #assert abs(temp-1) < 1e-5
+        pup = 0.5 + 0.5*temp
         pdown = 1 - pup
-
+        #print(pup)
+        
         # projection of wavefunction into z-down state
         #pdown1=down.dot(wave)
         #pdown=wave.conjugate().T.dot(pdown1)
@@ -291,11 +289,11 @@ def measure(wave, prob, pos, l):
         To avoid possible numerical errors where pup>1, we manually set the probability 
         to be 1 or 0.
         '''
-        if abs(pup-1)<1e-8: 
+        if abs(pup-1) < 1e-6: 
             pup = 1.0
             pdown = 0.0
             wave = pup1
-        elif abs(pup)<1e-8:
+        elif abs(pup) < 1e-6:
             pup = 0.0
             pdown = 1.0
             wave = pdown1
@@ -305,7 +303,7 @@ def measure(wave, prob, pos, l):
             probility of the measurement outcome is determined 
             by the expetation value of projection operator
             '''
-            out = np.random.choice([0,1],1,p=[pup, pdown])
+            out = np.random.choice([0, 1], 1, p = [pup, pdown])
 
             # if the measurement projects the spin onto the z-up state
             if out[0] == 0:
@@ -380,54 +378,11 @@ def unitary_parallel(wave, i, l): # different unitary evolution protocol
         # shift the position and flatten array
         wave = np.moveaxis(wave, -1, 0).ravel(order='F')
         pss = temp
+
     return wave
 
 
-# time evolution consists of random unitaries + projective measurement
-def evo(steps, wave, prob, l, n, partition):
-    von = np.zeros(steps, dtype='float64') # von-Neumann entropy
-    renyi = np.zeros(steps, dtype='float64') # Renyi entropy
-    neg = np.zeros(steps, dtype='float64') # logarithmic negativity
-    mut = np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
-    mutr = np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
-    
-    for t in range(steps):
-        # evolve over odd links
-        for i in range(l//2):
-            wave = unitary(wave, i, l)     
-        
-        # measurement layer
-        for i in range(l):
-            wave = measure(wave, prob, i, l)
 
-        # before evolve on even link, we need to rearrange indices first to accommodate the boundary condition PBC
-        wave = np.reshape(wave,(2, 2**(l-2),2))
-        # move the last site into the first one such that the unitaries can connect the 1st and the last site
-        wave = np.moveaxis(wave,-1,0)
-        wave = wave.flatten()
-        
-        # evolve over even links
-        for i in range(l//2):
-            wave = unitary(wave, i, l)  
-
-        #shift the index back to the original order after evolution
-        wave = np.reshape(wave,(2, 2, 2**(l-2)))
-        wave = np.moveaxis(wave,-1,0)
-        wave = np.moveaxis(wave,-1,0).flatten()
-
-        #measurement layer
-        for i in range(l):
-            wave = measure(wave, prob, i, l)
-       
-        result = ent(wave, n, l, l//2)
-        von[t] = result[0]
-        renyi[t] = result[1]
-        result = logneg(wave, n, partition)
-        neg[t] = result[0]
-        mut[t] = result[1]
-        mutr[t] = result[2]
-
-    return np.array([von, renyi, neg , mut, mutr])
 
 # generate a small data set to feed kron_raw for compilation
 d_a = np.ones(4)
