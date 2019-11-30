@@ -28,6 +28,7 @@ The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested o
 
 ~~Large-scale distributed Kronecker product~~
 
+Using mpi_evo.py for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.
 
 Large-scale distributed SVD using MPI
 
