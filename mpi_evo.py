@@ -58,7 +58,7 @@ def unitary_mpi(wave, i, l):
         else:
             un_pack = np.empty((3, un_coo[0].shape[0]), dtype='c8')
         comm.Bcast(un_pack, root=0)
-        assert un_pack.dtype == 'c8'
+        #assert un_pack.dtype == 'c8'
         # unpack the data and make the sparse matrix block
         un_sub = coo_matrix((un_pack[0],(un_pack[1],un_pack[2])), shape=(2**(l-2*i), 2**(l-2*i)))
         
@@ -70,20 +70,20 @@ def unitary_mpi(wave, i, l):
             #print("this is sendbuf", sendbuf)
         recvbuf = np.empty(2**l//size, dtype='c8')
         comm.Scatter(sendbuf, recvbuf, root=0)
-        assert recvbuf.shape[0] == 2**l//size
+        #assert recvbuf.shape[0] == 2**l//size
         sub_blocks = 2**(2*i)//size # number of subblocks 
         # each sub-divided wavefunction are further splitted locally
         wave_split = np.split(recvbuf, sub_blocks)
-        assert len(wave_split) == sub_blocks
-        assert wave_split[0].dtype == 'c8'
+        #assert len(wave_split) == sub_blocks
+        #assert wave_split[0].dtype == 'c8'
         temp = np.empty_like(wave_split)
-        assert temp.dtype == 'c8'
+        #assert temp.dtype == 'c8'
         # apply dot product for each block matrix
         for k in range(sub_blocks):
             temp[k] = un_sub.dot(wave_split[k])
         # stack wavefunction locally
         wave_split = np.concatenate(temp)
-        assert wave_split.shape[0] == 2**l//size
+        #assert wave_split.shape[0] == 2**l//size
         # gathering resulting wavefuntion
         recvbuf = None
         if rank == 0:
@@ -92,7 +92,7 @@ def unitary_mpi(wave, i, l):
         comm.Gather(wave_split, recvbuf, root=0)
         if rank == 0:
             wave = recvbuf.ravel(order='F')
-            assert wave.shape[0] == 2**l
+            #assert wave.shape[0] == 2**l
             wave = np.reshape(recvbuf,(2, 2**(L-2), 2))
             # shift the axis to next position and flatten array
             wave = np.moveaxis(wave, -1, 0).ravel(order='F')
@@ -129,6 +129,6 @@ def evo_parallel(steps, wave, prob, l, n, partition):
     return np.array([von, renyi, neg , mut, mutr])
 
 result = evo_parallel(time, psi, pro, L, 2, part)
-np.savez_compressed('evo_L=%s_p=%s_t=%s'%(L, pro, time+2*L), ent=result[0], renyi=result[1], neg=result[2], mut=result[3], mutr=result[4])
+np.savez_compressed('evo_L=%s_p=%s_t=%s'%(L, pro, time), ent=result[0], renyi=result[1], neg=result[2], mut=result[3], mutr=result[4])
 end = timer()
 print("Elapsed = %s" % (end - start))
