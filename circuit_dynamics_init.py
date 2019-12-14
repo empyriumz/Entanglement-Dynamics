@@ -74,7 +74,7 @@ def ent_approx(wave, n, l, la):
     # by keeping l largest singluar values
     # this approximation applies only when calculating half-chain EE
     lb = l - la
-    tol = 1e-12
+    tol = 1e-8
     # convert the wavefunction into a matrix for SVD
     temp = np.reshape(wave,(int(2**la),int(2**lb)))
     if lb != l//2: 
@@ -139,7 +139,7 @@ def logneg(wave, n, partition):
     sp = np.linalg.svd(pab, compute_uv=False)
     # definition of logarithmic negativity
     logn = np.log2(np.sum(sp))
-    tol = 1e-10
+    tol = 1e-5
     # returns logarithmic negativity and two mutual information
     result = np.array([logn, sa+sb-sc, sar+sbr-scr])
     # chop small values to be zero
@@ -225,6 +225,7 @@ def measure_slow(wave, prob, l):
                 wave=(1/np.sqrt(pup))*pup1 # normalization of wavefunction
             else:
                 wave=(1/np.sqrt(pdown))*pdown1
+
     return wave
 
 
@@ -256,14 +257,13 @@ def measure(wave, prob, pos, l):
         but the kronecker product is slow in scipy
         '''
         
-
-        # projection of wavefunction
         '''
         the spin-up/dowm projection operator is given by $1/2(I \pm \sigma_z)$
         we compute \sigma_z dot \psi part only since the identity part is trivial.
         This is also for avoiding the plus operation between 
         two large sparse matrices which is slow numerically
         '''
+        # projection of wavefunction
         temp = pz*wave
         '''
         instead we only need to compute the plus and minus between vectors
@@ -276,40 +276,48 @@ def measure(wave, prob, pos, l):
         #assert abs(temp-1) < 1e-5
         pup = 0.5 + 0.5*temp
         pdown = 1 - pup
-        #print(pup)
-        
-        # projection of wavefunction into z-down state
-        #pdown1=down.dot(wave)
-        #pdown=wave.conjugate().T.dot(pdown1)
-        #pdown=np.asscalar(pdown.real)
         
         '''
         in case the wavefunction is close to product state, the measurement 
         might yield pup=1 or pdown=1. 
-        To avoid possible numerical errors where pup>1, we manually set the probability 
+        To avoid possible numerical errors such as pup > 1 or pup < 0, 
+        we manually set the probability 
         to be 1 or 0.
         '''
-        if abs(pup-1) < 1e-6: 
-            pup = 1.0
-            pdown = 0.0
-            wave = pup1
-        elif abs(pup) < 1e-6:
-            pup = 0.0
-            pdown = 1.0
-            wave = pdown1
-        else:
-            pdown = 1 - pup
-            '''
-            probility of the measurement outcome is determined 
-            by the expetation value of projection operator
-            '''
-            out = np.random.choice([0, 1], 1, p = [pup, pdown])
+        if pup > 1 or pup < 0:
+            try:
+                if abs(pup-1) < 1e-4:
+                    pup = 1.0
+                    pdown = 0.0
+                    wave = pup1
+                elif abs(pup) < 1e-4:
+                    pup = 0.0
+                    pdown = 1.0
+                    wave = pdown1
+            except:
+                raise Exception('unphysical measure results!')
 
-            # if the measurement projects the spin onto the z-up state
-            if out[0] == 0:
-                wave = (1/np.sqrt(pup))*pup1 # normalization of wavefunction
-            else:
-                wave = (1/np.sqrt(pdown))*pdown1
+        # if abs(pup-1) < 1e-4: 
+        #     pup = 1.0
+        #     pdown = 0.0
+        #     wave = pup1
+        # elif abs(pup) < 1e-4:
+        #     pup = 0.0
+        #     pdown = 1.0
+        #     wave = pdown1
+        # else:
+        #     pdown = 1 - pup
+        '''
+        probility of the measurement outcome is determined 
+        by the expetation value of projection operator
+        '''
+        out = np.random.choice([0, 1], 1, p = [pup, pdown])
+
+        # if the measurement projects the spin onto the z-up state
+        if out[0] == 0:
+            wave = (1/np.sqrt(pup))*pup1 # normalization of wavefunction
+        else:
+            wave = (1/np.sqrt(pdown))*pdown1
             
     return wave
 
@@ -364,7 +372,7 @@ def unitary_parallel(wave, i, l): # different unitary evolution protocol
     To reach optimal efficiency, the position index i must be chosen accordingly with the given
     system size l.
     '''
-    temp = np.zeros((2**(2*i), 2**(l-2*i)),dtype='c8')
+    temp = np.zeros((2**(2*i), 2**(l-2*i)),dtype='c16')
     pss = temp
     for j in range(l):
         wave_split = np.split(wave, 2**(2*i))
