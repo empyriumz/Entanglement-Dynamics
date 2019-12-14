@@ -4,6 +4,7 @@ from circuit_dynamics_init import *
 import sys
 
 # Global error handler
+# source https://github.com/chainer/chainermn/issues/236
 def global_except_hook(exctype, value, traceback):
     import sys
     try:
@@ -128,7 +129,7 @@ def unitary_mpi(wave, i, l):
             # shift the axis to next position and flatten array
             wave = np.moveaxis(wave, -1, 0).ravel(order='F')
 
-            return wave
+        return wave
 
 def evo_parallel(steps, wave, prob, l, n, partition):
     von = np.zeros(steps, dtype='float64') # von-Neumann entropy
