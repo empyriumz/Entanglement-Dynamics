@@ -295,18 +295,7 @@ def measure(wave, prob, pos, l):
                     pdown = 1.0
                     wave = pdown1
             except:
-                raise Exception('unphysical measure results!')
-
-        # if abs(pup-1) < 1e-4: 
-        #     pup = 1.0
-        #     pdown = 0.0
-        #     wave = pup1
-        # elif abs(pup) < 1e-4:
-        #     pup = 0.0
-        #     pdown = 1.0
-        #     wave = pdown1
-        # else:
-        #     pdown = 1 - pup
+                raise Exception('unphysical measurement results!')
         '''
         probility of the measurement outcome is determined 
         by the expetation value of projection operator
@@ -322,7 +311,7 @@ def measure(wave, prob, pos, l):
     return wave
 
 # random unitary evolution
-def unitary(wave, pos, l):  
+def unitary_conventional(wave, pos, l):  
     '''
     the conventional protocol that generate a vast sparse matrix,
     which is a kronecker product between a random 4*4 unitary with a sparse identity matrix
@@ -357,7 +346,7 @@ def unitary(wave, pos, l):
 
     return wave
 
-def unitary_parallel(wave, i, l): # different unitary evolution protocol
+def unitary(wave, i, l): # different unitary evolution protocol
     '''
     this protocol makes use of the fact that the 2^l by 2^l sparse matrix 
     is in fact block diagonal with each block size being 2^(l-2*i). We can 
@@ -372,6 +361,8 @@ def unitary_parallel(wave, i, l): # different unitary evolution protocol
     To reach optimal efficiency, the position index i must be chosen accordingly with the given
     system size l.
     '''
+    if i >= l//2:
+        raise ValueError("Invalid partition. i must be less than l/2." )
     temp = np.zeros((2**(2*i), 2**(l-2*i)),dtype='c16')
     pss = temp
     for j in range(l):
@@ -389,7 +380,26 @@ def unitary_parallel(wave, i, l): # different unitary evolution protocol
 
     return wave
 
+# def unitary_cxx(wave, i, l): # different unitary evolution protocol
+#     '''
+#     using pybind11 and c++ library eigen to perform dot product (no openmp)
+#     '''
+#     temp = np.zeros((2**(2*i), 2**(l-2*i)),dtype='c16')
+#     pss = temp
+#     for j in range(l):
+#         wave_split = np.split(wave, 2**(2*i))
+#         u = unitary_group.rvs(4)
+#         un = sparse.kron(u, sparse.identity(2**(l-2*i-2)), format="csc")
+#         for k in range(2**(2*i)):
+#             pss[k] = code.dot(un, wave_split[k])
 
+#         wave = np.concatenate(pss) # gathering wavefunction
+#         wave = np.reshape(wave,(2, 2**(l-2), 2))
+#         # shift the position and flatten array
+#         wave = np.moveaxis(wave, -1, 0).ravel(order='F')
+#         pss = temp
+
+#     return wave
 
 
 # generate a small data set to feed kron_raw for compilation
@@ -404,6 +414,5 @@ c_b = c_a
 shape_b = 4
 
 
-
 if __name__ == "__main__":  # jit compile
-    kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
+    kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)  
