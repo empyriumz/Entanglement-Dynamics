@@ -14,12 +14,12 @@ When the system size L is large, it is possible to make the approximation that o
 largest singular values in computing the entanglement entropy. This approximation works well even at the entanglement transition critical point where the entanglement scales as log(L).
  -->
 # Dependencies:
-1. Python 3 (tested with Python 3.7)
+1. Python 3 (tested with Python 3.7 and 3.6)
 2. Jupyter lab (or notebook)
 3. Numpy, Scipy, Numba (all lastest version from Conda)
 4. [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) C++ library, [pybind11](https://github.com/pybind/pybind11) and [cppimport](https://github.com/tbenthompson/cppimport) if you want to try using C++ to speed up some matrix dot product.
 
-GPU and MPI versions need Cupy and mpi4py and dependencies therein.
+GPU and MPI versions need [Cupy](https://github.com/cupy/cupy) and [mpi4py](https://bitbucket.org/mpi4py/mpi4py/src/master/) and dependencies therein.
 
 # TODO
 ~~GPU version for fast SVD and matrix dot.~~
