@@ -21,17 +21,21 @@ largest singular values in computing the entanglement entropy. This approximatio
 
 GPU and MPI versions need [cupy](https://github.com/cupy/cupy) and [mpi4py](https://bitbucket.org/mpi4py/mpi4py/src/master/) and dependencies therein.
 
-# Play with Docker
+# Play with Docker (In progress)
 For those who has trouble in setting up the dependencies (like myself on my own laptop),
 there is an alternative way to play with this project by [Docker](https://www.docker.com).
 If you happen to have Docker running in your system, simply run
+
     docker pull eww308/ubuntu:latest
 and
+
     docker run -it eww308/ubuntu zsh
     cd home/test_eigen/ 
 after tuning parameters
+
     nano para_haar.txt
 you can run simulations with
+
     python3 evo.py
 
 # TODO
