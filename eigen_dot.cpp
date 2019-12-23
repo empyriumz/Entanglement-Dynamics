@@ -43,7 +43,17 @@ VectorXcd dot(int i, int l, SpMat un, VectorXcd wave)
 
 }
 
+VectorXcd dot_simple(SpMat un, VectorXcd wave)
+{
+ return un*wave;
+}
+
+// PYBIND11_MODULE(dot_simple, m) {   
+//     m.def("dot", &dot);  
+//  }
+
 PYBIND11_MODULE(eigen_dot, m) {   
     //Release GIL before calling into C++ code 
-    m.def("dot", &dot, py::call_guard<py::gil_scoped_release>());  
+    m.def("dot", &dot, py::call_guard<py::gil_scoped_release>());
+    m.def("dot_simple", &dot_simple, py::call_guard<py::gil_scoped_release>());  
  }
