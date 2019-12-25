@@ -42,15 +42,12 @@ VectorXcd dot(int i, int l, SpMat un, VectorXcd wave)
  return temp;
 
 }
-
+// simple implementation without openmp; only for benchmark purpose
 VectorXcd dot_simple(SpMat un, VectorXcd wave)
 {
  return un*wave;
 }
 
-// PYBIND11_MODULE(dot_simple, m) {   
-//     m.def("dot", &dot);  
-//  }
 
 PYBIND11_MODULE(eigen_dot, m) {   
     //Release GIL before calling into C++ code 
