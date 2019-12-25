@@ -39,7 +39,7 @@ you can run simulations with
     python evo.py
 or the parallel (with MPI and/or OpenMP) version:
 
-    python mpi_evo.py
+    mpiexec -n 4 --allow-run-as-root python mpi_evo.py
 The results will be saved in corresponding .npz files.
 
 # TODO
