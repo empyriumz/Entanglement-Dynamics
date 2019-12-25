@@ -3,7 +3,9 @@ from timeit import default_timer as timer
 from circuit_dynamics_init import *
 import sys
 
-# Global error handler
+start = timer()
+
+# Global error handler to avoid MPI deadlock (a known bug in mpi4py)
 # source https://github.com/chainer/chainermn/issues/236
 def global_except_hook(exctype, value, traceback):
     import sys
@@ -32,9 +34,6 @@ def global_except_hook(exctype, value, traceback):
 sys.excepthook = global_except_hook
 
 
-
-start = timer()
-
 # reading parameters from file
 para = open('para_haar.txt', 'r')
 para = para.readlines()
@@ -56,13 +55,14 @@ p2 = np.zeros(2**L-1,dtype='c16')
 psi = np.concatenate((p1,p2),axis=0).T
 
 
+# MPI session
+import mpi4py.MPI
+comm = mpi4py.MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
 
 def unitary_mpi(wave, i, l):
-    # MPI session
-    import mpi4py.MPI
-    comm = mpi4py.MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size = comm.Get_size()
+
     shape_b = 2**(l-2*i-2)
     len_u = 16*shape_b # length of data array to be scattered to assemble unitary matrix
     for j in range(l):
@@ -91,7 +91,7 @@ def unitary_mpi(wave, i, l):
         comm.Bcast(un_pack, root=0)
         assert un_pack.dtype == 'c16'
         # unpack the data and make the sparse matrix block
-        un_sub = coo_matrix((un_pack[0],(un_pack[1],un_pack[2])), shape=(2**(l-2*i), 2**(l-2*i)))
+        un_sub = coo_matrix((un_pack[0],(un_pack[1].real,un_pack[2].real)), shape=(2**(l-2*i), 2**(l-2*i)))
         
         # Scatter wavefunction across the nodes
         sendbuf = None
@@ -125,13 +125,13 @@ def unitary_mpi(wave, i, l):
         if rank == 0:
             wave = recvbuf.ravel(order='F')
             assert wave.shape[0] == 2**l
-            wave = np.reshape(recvbuf,(2, 2**(L-2), 2))
+            wave = np.reshape(recvbuf,(2, 2**(l-2), 2))
             # shift the axis to next position and flatten array
             wave = np.moveaxis(wave, -1, 0).ravel(order='F')
 
-        return wave
+    return wave
 
-def evo_parallel(steps, wave, prob, l, n, partition):
+def evo_parallel(steps, wave, prob, l = L, n = 2, partition = part):
     von = np.zeros(steps, dtype='float64') # von-Neumann entropy
     renyi = np.zeros(steps, dtype='float64') # Renyi entropy
     neg = np.zeros(steps, dtype='float64') # logarithmic negativity
@@ -140,28 +140,30 @@ def evo_parallel(steps, wave, prob, l, n, partition):
     
     for t in range(steps):
         # evolve over ALL links
-        wave = unitary_mpi(wave, 4, l)     
-        
+        wave = unitary_mpi(wave, 4, l)             
         # measurement layer
         '''
         with this protocol, we need to double the measurement rate
         '''
-        for i in range(l):
-            wave = measure(wave, prob, i, l)
-       
-        result = ent(wave, n, l, l//2) # half-chain entanglement entropy
-        # print(result[0])
-        von[t] = result[0]
-        renyi[t] = result[1]
-        result = logneg(wave, n, partition) # logarithmic negativity according to preset partition
-        neg[t] = result[0]
-        mut[t] = result[1]
-        mutr[t] = result[2]
+        if rank == 0:
+            for i in range(l):
+                wave = measure(wave, prob, i, l)
+
+            result = ent(wave, n, l, l//2) # half-chain entanglement entropy
+            # print(result[0])
+            von[t] = result[0]
+            renyi[t] = result[1]
+            result = logneg(wave, n, partition) # logarithmic negativity according to preset partition
+            neg[t] = result[0]
+            mut[t] = result[1]
+            mutr[t] = result[2]
 
     return np.array([von, renyi, neg, mut, mutr])
 
-result = evo_parallel(time, psi, pro, L, 2, part)
-np.savez('evo_L=%s_p=%s_t=%s'%(L, pro, time), ent=result[0], renyi=result[1], neg=result[2], mut=result[3], mutr=result[4])
+
+result = evo_parallel(time, psi, pro)
+if rank == 0:
+    np.savez('dynamics_L=%s_p=%s_t=%s'%(L, pro, time), ent=result[0], renyi=result[1], neg=result[2], mut=result[3], mutr=result[4])
 
 end = timer()
 print("Elapsed = %s" % (end - start))
