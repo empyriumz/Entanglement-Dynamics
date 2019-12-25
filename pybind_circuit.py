@@ -8,6 +8,7 @@ import cppimport
 # import c++ code module
 cxx = cppimport.imp("eigen_dot")
 
+# implement sparse-mat with dense vec dot product in parallel using openmp
 def unitary_cxx_parallel(wave, i, l): 
     '''
     using pybind11 and c++ library eigen to perform dot product 
@@ -19,15 +20,14 @@ def unitary_cxx_parallel(wave, i, l):
         # csr format for sparse matrix to enable built-in optimization of dot product in Eigen library
         un = sparse.kron(u, sparse.identity(2**(l-2*i-2)), format="csr")
         # call c++ functions to perform dot product in parallel
-        wave = cxx.dot(int(i), int(l), un, wave) 
+        wave = cxx.dot(i, l, un, wave, 1) 
         wave = np.reshape(wave,(2, 2**(l-2), 2))
         # shift the position and flatten array
-        wave = np.moveaxis(wave, -1, 0).ravel(order='F')
+        wave = np.moveaxis(wave, -1, 0).ravel(order='C')
         # pss = temp
 
     return wave
 
-# simple = cppimport.imp("dot_simple")
 # random unitary evolution
 def unitary_conventional_cxx(wave, i, l):  
     '''

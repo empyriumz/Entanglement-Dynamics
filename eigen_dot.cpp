@@ -17,15 +17,15 @@ using namespace Eigen;
 typedef SparseMatrix<std::complex<double>>  SpMat; 
 
 
-VectorXcd dot(int i, int l, SpMat un, VectorXcd wave)
+VectorXcd dot(int i, int l, SpMat un, VectorXcd wave, int size)
 {
  py::gil_scoped_acquire acquire; /* Acquire GIL before calling Python code */
  initParallel(); // not required after eigen 3.3 and c++11 compiler
  setNbThreads(8);
  int k;
  int chunk = pow(2, l-2*i); // dimensions of the incoming unitary sparse matrix
- int dim = pow(2, l);
- int split = pow(2, 2*i); // # of splitted wavefunction
+ int dim = pow(2, l)/size; 
+ int split = pow(2, 2*i)/size; // # of splitted wavefunction
  int batch = BATCHSIZE; // specify the batch size for each threads
  VectorXcd temp(dim); // temp vector to keep tract of mat-vec multiplication
  temp = VectorXcd::Zero(dim);
@@ -50,7 +50,8 @@ VectorXcd dot_simple(SpMat un, VectorXcd wave)
 
 
 PYBIND11_MODULE(eigen_dot, m) {   
-    //Release GIL before calling into C++ code 
+    // Release GIL before calling into C++ code 
+    // and also set up the default argument to be one
     m.def("dot", &dot, py::call_guard<py::gil_scoped_release>());
     m.def("dot_simple", &dot_simple, py::call_guard<py::gil_scoped_release>());  
  }

@@ -1,6 +1,7 @@
 # from mpi4py import MPI
 from timeit import default_timer as timer
 from circuit_dynamics_init import *
+from pybind_circuit import unitary_cxx_parallel
 import sys
 
 start = timer()
@@ -62,8 +63,8 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 def unitary_mpi(wave, i, l):
-
     shape_b = 2**(l-2*i-2)
+    # factor 16 is due to 4*4 random unitary is dense
     len_u = 16*shape_b # length of data array to be scattered to assemble unitary matrix
     for j in range(l):
         '''
@@ -75,23 +76,20 @@ def unitary_mpi(wave, i, l):
             u = coo_matrix(unitary_group.rvs(4), dtype = 'c16')
             d_a = u.data
             r_a = u.row
-            c_a = u.col
-            
-            
+            c_a = u.col            
             d_b = np.ones(shape_b)
             r_b = np.arange(shape_b)
             c_b = r_b
             un_coo = kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
-            #print(un_coo[0].shape, 2**(l-2*i), shape_b,len(r_a))
             
         # Broadcasting the unitary matrix to all nodes
             un_pack = np.array(un_coo, dtype='c16')
         else:
             un_pack = np.empty((3, len_u), dtype='c16')
         comm.Bcast(un_pack, root=0)
-        assert un_pack.dtype == 'c16'
+        # assert un_pack.dtype == 'c16'
         # unpack the data and make the sparse matrix block
-        un_sub = coo_matrix((un_pack[0],(un_pack[1].real,un_pack[2].real)), shape=(2**(l-2*i), 2**(l-2*i)))
+        un_sub = csr_matrix((un_pack[0],(un_pack[1].real,un_pack[2].real)), shape=(2**(l-2*i), 2**(l-2*i)))
         
         # Scatter wavefunction across the nodes
         sendbuf = None
@@ -101,20 +99,20 @@ def unitary_mpi(wave, i, l):
         recvbuf = np.empty(2**l//size, dtype='c16')
         # scatter chunked wavefunction from root node
         comm.Scatter(sendbuf, recvbuf, root=0)
-        assert recvbuf.shape[0] == 2**l//size
+        # assert recvbuf.shape[0] == 2**l//size
         sub_blocks = 2**(2*i)//size # number of subblocks of the sparse matrix 
         # each sub-divided wavefunction are further splitted locally
         wave_split = np.split(recvbuf, sub_blocks)
-        assert len(wave_split) == sub_blocks
-        assert wave_split[0].dtype == 'c16'
+        # assert len(wave_split) == sub_blocks
+        # assert wave_split[0].dtype == 'c16'
         temp = np.empty_like(wave_split)
-        assert temp.dtype == 'c16'
+        # assert temp.dtype == 'c16'
         # apply dot product for each block matrix
         for k in range(sub_blocks):
             temp[k] = un_sub.dot(wave_split[k])
         # stack wavefunction locally
         wave_split = np.concatenate(temp)
-        assert wave_split.shape[0] == 2**l//size
+        # assert wave_split.shape[0] == 2**l//size
         
         # set receiving buffer for root node
         recvbuf = None
@@ -124,12 +122,74 @@ def unitary_mpi(wave, i, l):
         comm.Gather(wave_split, recvbuf, root=0)
         if rank == 0:
             wave = recvbuf.ravel(order='F')
-            assert wave.shape[0] == 2**l
+            # assert wave.shape[0] == 2**l
             wave = np.reshape(recvbuf,(2, 2**(l-2), 2))
             # shift the axis to next position and flatten array
             wave = np.moveaxis(wave, -1, 0).ravel(order='F')
 
     return wave
+
+import cppimport
+
+# import c++ module to perfrom dot product
+cxx = cppimport.imp("eigen_dot")
+
+# mpi+openmp version
+def unitary_hybrid(wave, i, l):
+    shape_b = 2**(l-2*i-2)
+    # factor 16 is due to 4*4 random unitary is dense
+    len_u = 16*shape_b # length of data array to be scattered to assemble unitary matrix
+    for j in range(l):
+        '''
+        calculating the kronecker product between the random unitary matrix 
+        and the identity matrix then broadcasting it to all nodes
+        '''
+        if rank == 0:
+            u = coo_matrix(unitary_group.rvs(4), dtype = 'c16')
+            d_a = u.data
+            r_a = u.row
+            c_a = u.col            
+            d_b = np.ones(shape_b)
+            r_b = np.arange(shape_b)
+            c_b = r_b
+            un_coo = kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
+            
+        # Broadcasting the unitary matrix to all nodes
+            un_pack = np.array(un_coo, dtype='c16')
+        else:
+            un_pack = np.empty((3, len_u), dtype='c16')
+        comm.Bcast(un_pack, root=0)
+
+        # unpack the data and make the sparse matrix block
+        un_sub = csr_matrix((un_pack[0],(un_pack[1].real,un_pack[2].real)), shape=(2**(l-2*i), 2**(l-2*i)))
+        
+        # Scatter wavefunction across the nodes
+        sendbuf = None
+        if rank == 0:
+            sendbuf = np.array(np.split(wave, size), dtype='c16')
+        # receiving buffer for the incoming chunked wavefunction
+        recvbuf = np.empty(2**l//size, dtype='c16')
+        # scatter chunked wavefunction from root node
+        comm.Scatter(sendbuf, recvbuf, root=0)
+
+        # dot product between splitted wave function and sparse matrix un_sub using c++
+        wave_split = cxx.dot(i, l, un_sub, recvbuf, size)
+
+        # set receiving buffer for root node
+        recvbuf = None
+        if rank == 0:
+            recvbuf = np.empty([size, 2**l//size], dtype='c16')
+        # gathering resulting wavefuntion
+        comm.Gather(wave_split, recvbuf, root=0)
+        if rank == 0:
+            wave = recvbuf.ravel(order='C')
+            # assert wave.shape[0] == 2**l
+            wave = np.reshape(recvbuf,(2, 2**(l-2), 2))
+            # shift the axis to next position and flatten array
+            wave = np.moveaxis(wave, -1, 0).ravel(order='C')
+
+    return wave
+
 
 def evo_parallel(steps, wave, prob, l = L, n = 2, partition = part):
     von = np.zeros(steps, dtype='float64') # von-Neumann entropy
@@ -140,7 +200,7 @@ def evo_parallel(steps, wave, prob, l = L, n = 2, partition = part):
     
     for t in range(steps):
         # evolve over ALL links
-        wave = unitary_mpi(wave, 4, l)             
+        wave = unitary_hybrid(wave, 4, l)             
         # measurement layer
         '''
         with this protocol, we need to double the measurement rate
@@ -149,7 +209,7 @@ def evo_parallel(steps, wave, prob, l = L, n = 2, partition = part):
             for i in range(l):
                 wave = measure(wave, prob, i, l)
 
-            result = ent(wave, n, l, l//2) # half-chain entanglement entropy
+            result = ent(wave, n, l//2, l) # half-chain entanglement entropy
             # print(result[0])
             von[t] = result[0]
             renyi[t] = result[1]

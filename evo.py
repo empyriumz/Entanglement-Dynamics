@@ -42,7 +42,7 @@ def evo(steps, wave, prob, k = 4, l = L, n = 2, partition = part):
         for j in range(l):
             wave = measure(wave, prob, j, l)
        
-        result = ent_approx(wave, n, l, l//2) # half-chain entanglement entropy
+        result = ent(wave, n, l//2, l) # half-chain entanglement entropy
         von[t] = result[0]
         renyi[t] = result[1]
         result = logneg(wave, n, partition)
@@ -100,35 +100,35 @@ def evo_original(steps, wave, prob, l = L, n = 2, partition = part):
 
 # replacing dot product with c++ version of evolution
 # slowest option
-# def evo_cxx(steps, wave, prob, k = 4, l = L, n = 2, partition = part):
-#     von = np.zeros(steps, dtype='float64') # von-Neumann entropy
-#     renyi = np.zeros(steps, dtype='float64') # Renyi entropy
-#     neg = np.zeros(steps, dtype='float64') # logarithmic negativity
-#     mut = np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
-#     mutr = np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
-#     '''
-#     only the splitted dot product is replaced by c++ module
-#     '''
-#     for t in range(steps):
-#         # evolve over All links
-#         wave = unitary_cxx(wave, k, l)   
+def evo_cxx(steps, wave, prob, k = 4, l = L, n = 2, partition = part):
+    von = np.zeros(steps, dtype='float64') # von-Neumann entropy
+    renyi = np.zeros(steps, dtype='float64') # Renyi entropy
+    neg = np.zeros(steps, dtype='float64') # logarithmic negativity
+    mut = np.zeros(steps, dtype='float64') # mutual information using von-Neumann entropy
+    mutr = np.zeros(steps, dtype='float64') # mutual information in terms of Renyi entropy
+    '''
+    only the splitted dot product is replaced by c++ module
+    '''
+    for t in range(steps):
+        # evolve over All links
+        wave = unitary_cxx(wave, k, l)   
         
-#         # measurement layer
-#         '''
-#         with this protocol, we need to double the measurement rate
-#         '''
-#         for j in range(l):
-#             wave = measure(wave, prob, j, l)
+        # measurement layer
+        '''
+        with this protocol, we need to double the measurement rate
+        '''
+        for j in range(l):
+            wave = measure(wave, prob, j, l)
        
-#         result = ent_approx(wave, n, l, l//2) # half-chain entanglement entropy
-#         von[t] = result[0]
-#         renyi[t] = result[1]
-#         result = logneg(wave, n, partition)
-#         neg[t] = result[0]
-#         mut[t] = result[1]
-#         mutr[t] = result[2]
+        result = ent_approx(wave, n, l, l//2) # half-chain entanglement entropy
+        von[t] = result[0]
+        renyi[t] = result[1]
+        result = logneg(wave, n, partition)
+        neg[t] = result[0]
+        mut[t] = result[1]
+        mutr[t] = result[2]
 
-#     return np.array([von, renyi, neg , mut, mutr])
+    return np.array([von, renyi, neg , mut, mutr])
 
 # replacing dot product with c++ 
 def evo_original_cxx(steps, wave, prob, l = L, n = 2, partition = part):
@@ -166,7 +166,7 @@ def evo_original_cxx(steps, wave, prob, l = L, n = 2, partition = part):
         for i in range(l):
             wave = measure(wave, prob, i, l)
        
-        result = ent(wave, n, l, l//2)
+        result = ent(wave, n, l//2, l)
         von[t] = result[0]
         renyi[t] = result[1]
         result = logneg(wave, n, partition)
@@ -195,7 +195,7 @@ def evo_parallel(steps, wave, prob, k = 4, l = L, n = 2, partition = part):
         for j in range(l):
             wave = measure(wave, prob, j, l)
        
-        result = ent_approx(wave, n, l, l//2) # half-chain entanglement entropy
+        result = ent(wave, n, l//2, l) # half-chain entanglement entropy
         von[t] = result[0]
         renyi[t] = result[1]
         result = logneg(wave, n, partition)
@@ -206,10 +206,10 @@ def evo_parallel(steps, wave, prob, k = 4, l = L, n = 2, partition = part):
     return np.array([von, renyi, neg , mut, mutr])
 
 # benchmark for different evolution schemes
-start = timer()
-result = evo_original(time, psi, pro)
-end = timer()
-print("Elapsed = %s" % (end - start))
+# start = timer()
+# result = evo_original(time, psi, pro)
+# end = timer()
+# print("Elapsed = %s" % (end - start))
 
 start = timer()
 result = evo_original_cxx(time, psi, pro)
