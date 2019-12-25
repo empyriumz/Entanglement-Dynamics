@@ -37,10 +37,10 @@ after tuning parameters
 you can run simulations with
 
     python evo.py
-or the mpi version:
+or the parallel (with MPI and/or OpenMP) version:
 
     python mpi_evo.py
-and the results will be saved in corresponding .npz files.
+The results will be saved in corresponding .npz files.
 
 # TODO
 ~~GPU version for fast SVD and matrix dot.~~
@@ -49,11 +49,14 @@ The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested o
 
 ~~Large-scale distributed Kronecker product~~
 
-Using mpi4py and openmp for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.
+Currently we use numba accelerated Kronecker product and use a workaround to make large-scale
+Kronecker product unnecessary.
+
+~~Using mpi4py and openmp for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.~~~
+
+The MPI/OpenMP hybrid parallelism has been implemented and tested on Docker images.
 
 Large-scale distributed SVD using MPI
-
-Developing MPI-enabled Docker or Singularity containers. 
 
 # Refs:
 The protocol used in the time evolution is the same as the following papers
