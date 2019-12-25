@@ -52,7 +52,7 @@ The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested o
 Currently we use numba accelerated Kronecker product and use a workaround to make large-scale
 Kronecker product unnecessary.
 
-~~Using mpi4py and openmp for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.~~~
+~~Using mpi4py and openmp for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.~~
 
 The MPI/OpenMP hybrid parallelism has been implemented and tested on Docker images.
 
