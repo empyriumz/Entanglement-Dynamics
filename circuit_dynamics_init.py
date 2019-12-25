@@ -46,7 +46,7 @@ def kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b):
 
 
 # von-Neumann and Renyi entanglement entropy
-def ent(wave, n, l, la):
+def ent(wave, n, la, l):
     lb = l-la
     # convert the wavefunction into a matrix for SVD
     temp = np.reshape(wave,(2**la, 2**lb))
@@ -69,7 +69,7 @@ def ent(wave, n, l, la):
     return von, ren
 
 
-def ent_approx(wave, n, l, la): 
+def ent_approx(wave, n, la, l): 
     # approximated von-Neumann and Renyi entanglement entropy 
     # by keeping l largest singluar values
     # this approximation applies only when calculating half-chain EE
@@ -107,14 +107,14 @@ def logneg(wave, n, partition):
     ps = np.moveaxis(ps,0,1)
     ps = np.reshape(ps,(2**la, 2**(l-la)))
     # entanglement entropy in region A
-    en = ent(ps, n, l, la)  
+    en = ent(ps, n, la, l)  
     # sa and sar stand for von-Neumann and Renyi entanglement entropies
     sa, sar = en[0], en[1]
     
 
     # region B
     ps = np.reshape(wave, (2**(l-lb), 2**lb))
-    en = ent(ps, n, l, l-lb)
+    en = ent(ps, n, l-lb, l)
     sb, sbr = en[0], en[1]
 
     # region C
@@ -123,7 +123,7 @@ def logneg(wave, n, partition):
     ps = np.reshape(wave, (2**lc1, 2**la, 2**lc2, 2**lb))
     ps = np.moveaxis(ps,1,2)
     ps = np.reshape(ps,(2**(lc1+lc2), 2**(la+lb)))
-    en = ent(ps, n, l, lc1+lc2)
+    en = ent(ps, n, lc1+lc2, l)
     sc, scr = en[0], en[1]
     
     # log(negativity)
@@ -311,13 +311,12 @@ def measure(wave, prob, pos, l):
     return wave
 
 # random unitary evolution
-def unitary_conventional(wave, pos, l):  
+def unitary_conventional(wave, i, l):  
     '''
     the conventional protocol that generate a vast sparse matrix,
     which is a kronecker product between a random 4*4 unitary with a sparse identity matrix
     of size 2^{l-2} then applying this matrix to the wavefunction
     '''
-    i = pos
     d_a = np.ones(2**(2*i))
     r_a = np.arange(2**(2*i))
     c_a = r_a
@@ -329,7 +328,7 @@ def unitary_conventional(wave, pos, l):
     shape_b = u.shape[0]
     temp = kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
     
-    if pos < l//2-1: # 2nd kronecker product with identity matrix
+    if i < l//2-1: # 2nd kronecker product with identity matrix
         d_a = temp[0]
         r_a = temp[1]
         c_a = temp[2]
@@ -339,7 +338,7 @@ def unitary_conventional(wave, pos, l):
         c_b = r_b
         temp = kron_raw(d_a, r_a, c_a, d_b, r_b, c_b, shape_b)
     
-    # if pos == l//2, there's no need to perform 2nd kronecker product with 1*1 identity matrix   
+    # if i == l//2, there's no need to perform 2nd kronecker product with 1*1 identity matrix   
         
     un = coo_matrix((temp[0],(temp[1],temp[2])), shape=(2**l, 2**l))
     wave = un.dot(wave.flatten())
@@ -379,27 +378,6 @@ def unitary(wave, i, l): # different unitary evolution protocol
         pss = temp
 
     return wave
-
-# def unitary_cxx(wave, i, l): # different unitary evolution protocol
-#     '''
-#     using pybind11 and c++ library eigen to perform dot product (no openmp)
-#     '''
-#     temp = np.zeros((2**(2*i), 2**(l-2*i)),dtype='c16')
-#     pss = temp
-#     for j in range(l):
-#         wave_split = np.split(wave, 2**(2*i))
-#         u = unitary_group.rvs(4)
-#         un = sparse.kron(u, sparse.identity(2**(l-2*i-2)), format="csc")
-#         for k in range(2**(2*i)):
-#             pss[k] = code.dot(un, wave_split[k])
-
-#         wave = np.concatenate(pss) # gathering wavefunction
-#         wave = np.reshape(wave,(2, 2**(l-2), 2))
-#         # shift the position and flatten array
-#         wave = np.moveaxis(wave, -1, 0).ravel(order='F')
-#         pss = temp
-
-#     return wave
 
 
 # generate a small data set to feed kron_raw for compilation
