@@ -63,7 +63,7 @@ def evo_original(steps, wave, prob, l = L, n = 2, partition = part):
     for t in range(steps):
         # evolve over odd links
         for i in range(l//2):
-            wave = unitary(wave, i, l)     
+            wave = unitary_conventional(wave, i, l)     
         
         # measurement layer
         for i in range(l):
@@ -77,7 +77,7 @@ def evo_original(steps, wave, prob, l = L, n = 2, partition = part):
         
         # evolve over even links
         for i in range(l//2):
-            wave = unitary(wave, i, l)  
+            wave = unitary_conventional(wave, i, l)  
 
         #shift the index back to the original order after evolution
         wave = np.reshape(wave,(2, 2, 2**(l-2)))
@@ -88,7 +88,7 @@ def evo_original(steps, wave, prob, l = L, n = 2, partition = part):
         for i in range(l):
             wave = measure(wave, prob, i, l)
        
-        result = ent(wave, n, l, l//2)
+        result = ent(wave, n, l//2, l)
         von[t] = result[0]
         renyi[t] = result[1]
         result = logneg(wave, n, partition)
