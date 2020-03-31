@@ -3,11 +3,11 @@ Random unitary time evolution plus projective measurement in the one-dimensional
 
 Starting from a product state without entanglement, by applying the randomly generated 2-qubit unitary gate between adjacent qubits, the bipartite entanglement entropy EE increases quickly in a linear fashion and thermalized in a volume law phases (EE ~ L).
 
-If during the evolution, we measurement the state of those qubits in projectivly, e.g., a spin-z projection on some randomly selected site with probability p, there will be competitions between entanglement spreading and disentangling. The steady state of the system will be determined by these two factors. It is therefore natural to ask how the entanglement will evolve and the physical properties of the entanglement transition point.
+If we measure the state of those qubits during the evolution projectivly, e.g., a spin-z projection on some randomly selected site with probability p, there will be competitions between entanglement spreading and disentangling. The steady state of the system will be determined by these two factors. It is therefore natural to ask how the entanglement will evolve and the physical properties of the entanglement transition point, if any.
 
 
 Moreover, by partitioning the system into three parts, it is possible to calculate the mutual information 
-and [negativity](https://en.wikipedia.org/wiki/Negativity_(quantum_mechanics)), which may provide more insight into the possible area-to-volume law entanglement phase transitions.
+and [negativity](https://en.wikipedia.org/wiki/Negativity_(quantum_mechanics)), which can provide more insight into the possible area-to-volume law entanglement phase transitions.
 
 <!-- 
 When the system size L is large, it is possible to make the approximation that only keeps a few O(L)
