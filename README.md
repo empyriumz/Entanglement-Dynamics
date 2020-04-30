@@ -43,20 +43,19 @@ or the parallel (with MPI and/or OpenMP) version:
 The results will be saved in corresponding .npz files.
 
 # TODO
-~~GPU version for fast SVD and matrix dot.~~
+* ~~GPU version for fast SVD and matrix dot.~~
 
-The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested on Kaggle platform (with NVidia K80). 
+* The GPU version using [cupy](https://cupy.chainer.org/) is successfully tested on Kaggle platform (with NVidia K80). 
 
-~~Large-scale distributed Kronecker product~~
+* ~~Large-scale distributed Kronecker product~~
 
-Currently we use numba accelerated Kronecker product and use a workaround to make large-scale
-Kronecker product unnecessary.
+* Currently we use numba accelerated Kronecker product and use a workaround to make large-scale Kronecker product unnecessary.
 
-~~Using mpi4py and openmp for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.~~
+* ~~Using mpi4py and openmp for simulating relatively large system size (L\~ 24) with paralleled random unitary evolution.~~
 
-The MPI/OpenMP hybrid parallelism has been implemented and tested on Docker images.
+* The MPI/OpenMP hybrid parallelism has been implemented and tested on Docker images.
 
-Large-scale distributed SVD using MPI
+* Large-scale distributed SVD using MPI
 
 # Refs:
 The protocol used in the time evolution is the same as the following papers
