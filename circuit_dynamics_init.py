@@ -354,7 +354,7 @@ def unitary(wave, i, l): # different unitary evolution protocol
     with the same sparse matix un. 
 
     Then we proceed to shift the position index of the wavefuntion and evolve it with 
-    another random unitary. After shifting L times the position index assumes its original 
+    another random unitary. After shifting L times the position index returns its original 
     place and completes a whole evolution (both on even and odd links) 
 
     To reach optimal efficiency, the position index i must be chosen accordingly with the given
@@ -380,7 +380,7 @@ def unitary(wave, i, l): # different unitary evolution protocol
     return wave
 
 
-# generate a small data set to feed kron_raw for compilation
+# generate a small data set to feed kron_raw() for compilation
 d_a = np.ones(4)
 r_a = np.arange(4)
 c_a = r_a

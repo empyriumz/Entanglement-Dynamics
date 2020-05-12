@@ -206,10 +206,10 @@ def evo_parallel(steps, wave, prob, k = 4, l = L, n = 2, partition = part):
     return np.array([von, renyi, neg , mut, mutr])
 
 # benchmark for different evolution schemes
-# start = timer()
-# result = evo_original(time, psi, pro)
-# end = timer()
-# print("Elapsed = %s" % (end - start))
+start = timer()
+result = evo_original(time, psi, pro)
+end = timer()
+print("Elapsed = %s" % (end - start))
 
 start = timer()
 result = evo_original_cxx(time, psi, pro)
